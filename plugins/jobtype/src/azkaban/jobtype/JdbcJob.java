@@ -33,9 +33,9 @@ import azkaban.utils.Props;
 import azkaban.jobExecutor.AbstractProcessJob;
 
 /**
- * A job that runs a Redshift command via jdbc
+ * A job that runs commands in an .sql file command via jdbc
  */
-public class RedshiftJob extends AbstractProcessJob {
+public class JdbcJob extends AbstractProcessJob {
 
 	public static final String RUN_METHOD_PARAM = "method.run";
 	public static final String CANCEL_METHOD_PARAM = "method.cancel";
@@ -46,9 +46,10 @@ public class RedshiftJob extends AbstractProcessJob {
 	public static final String DEFAULT_PROGRESS_METHOD = "getProgress";
 	
 	// mandatory
-	public static final String FIELD_DBURL = "redshift.dburl";
-	public static final String FIELD_USERNAME = "redshift.user";
-	public static final String FIELD_PASSWORD = "redshift.password";
+	public static final String FIELD_DBURL = "jdbc.dburl";
+	public static final String FIELD_USERNAME = "jdbc.user";
+	public static final String FIELD_PASSWORD = "jdbc.password";
+	public static final String FIELD_CLASSNAME = "jdbc.classname";
 	public static final String FIELD_FILEPATH = "sqlfile.path";
 	// optional
 	public static final String FIELD_CHARSET = "sqlfile.charset";
@@ -62,6 +63,7 @@ public class RedshiftJob extends AbstractProcessJob {
 	private String dbURL = null; //e.g. "x.y.us-east-1.redshift.amazonaws.com:5439/dev";
 	private String userName = null;
 	private String userPassword = null;
+	private String className = null;
 	// optional
 	private String charSet = "UTF-8";
 	private char statementSeparator = ';';
@@ -71,16 +73,17 @@ public class RedshiftJob extends AbstractProcessJob {
 	private static final long KILL_TIME_MS = 5000;
 	private volatile AzkabanProcess process;
 
-	public RedshiftJob(final String jobId, final Props sysProps, final Props jobProps, final Logger log) {
+	public JdbcJob(final String jobId, final Props sysProps, final Props jobProps, final Logger log) {
 		super(jobId, sysProps, jobProps, log);
 	}
 	
 	private void loadProps() throws Exception {
 		// mandatory
-		dbURL = "jdbc:redshift://" + jobProps.getString(FIELD_DBURL);  // missing prop definition handled inside Props class
+		dbURL = jobProps.getString(FIELD_DBURL);  // missing prop definition handled inside Props class
 		userName = jobProps.getString(FIELD_USERNAME);
 		userPassword = jobProps.getString(FIELD_PASSWORD);
 		sqlFilePath = jobProps.getString(FIELD_FILEPATH);
+		className = jobProps.getString(FIELD_CLASSNAME);
 		// optional
 		charSet = jobProps.getString(FIELD_CHARSET, charSet);
 		statementSeparator = jobProps.getString(FIELD_SEPARATOR, String.valueOf(statementSeparator)).charAt(0);
@@ -111,7 +114,7 @@ public class RedshiftJob extends AbstractProcessJob {
 
 		long startMs = System.currentTimeMillis();
 		try {
-			Class.forName("com.amazon.redshift.jdbc41.Driver");
+			Class.forName(className);
 			info("Connecting to database... ");
 			Properties props = new Properties();
 			props.setProperty("user", userName);
