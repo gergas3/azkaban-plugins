@@ -23,6 +23,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.log4j.Logger;
@@ -48,7 +49,7 @@ public class JdbcJob extends AbstractProcessJob {
 	// mandatory
 	public static final String FIELD_DBURL = "jdbc.dburl";
 	public static final String FIELD_USERNAME = "jdbc.user";
-	public static final String FIELD_PASSWORD = "jdbc.password";
+	public static final String FIELD_PASSWORD = "jdbc.passfile";
 	public static final String FIELD_CLASSNAME = "jdbc.classname";
 	public static final String FIELD_FILEPATH = "sqlfile.path";
 	// optional
@@ -62,6 +63,7 @@ public class JdbcJob extends AbstractProcessJob {
 	private String sqlFilePath = null;
 	private String dbURL = null; //e.g. "x.y.us-east-1.redshift.amazonaws.com:5439/dev";
 	private String userName = null;
+	private String passFilePath = null;
 	private String userPassword = null;
 	private String className = null;
 	// optional
@@ -81,7 +83,18 @@ public class JdbcJob extends AbstractProcessJob {
 		// mandatory
 		dbURL = jobProps.getString(FIELD_DBURL);  // missing prop definition handled inside Props class
 		userName = jobProps.getString(FIELD_USERNAME);
-		userPassword = jobProps.getString(FIELD_PASSWORD);
+		passFilePath = jobProps.getString(FIELD_PASSWORD);
+		Properties prop = new Properties();
+		InputStream inputStream = new FileInputStream(passFilePath);
+		if (inputStream != null) {
+			prop.load(inputStream);
+		} else {
+			throw new FileNotFoundException("Property file '" + passFilePath + "' not found");
+		}
+		userPassword = prop.getProperty(userName);
+		if (userPassword == null) {
+			throw new Exception("Password for '"+userName+"' not found in properties file under '"+passFilePath+"'");
+		}
 		sqlFilePath = jobProps.getString(FIELD_FILEPATH);
 		className = jobProps.getString(FIELD_CLASSNAME);
 		// optional
