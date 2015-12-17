@@ -53,6 +53,7 @@ public class JdbcJob extends AbstractProcessJob {
 	public static final String FIELD_CLASSNAME = "jdbc.classname";
 	public static final String FIELD_FILEPATH = "sqlfile.path";
 	// optional
+	public static final String FIELD_PARAMFILEPATH = "params.path";
 	public static final String FIELD_CHARSET = "sqlfile.charset";
 	public static final String FIELD_SEPARATOR = "sqlfile.separator";
 	public static final String FIELD_BLACKLIST = "sqlfile.blacklist";
@@ -70,6 +71,7 @@ public class JdbcJob extends AbstractProcessJob {
 	private String charSet = "UTF-8";
 	private char statementSeparator = ';';
 	private List<String> blackList = new ArrayList<String>(Arrays.asList("wb","select"));
+	private String paramFilePath = "params.properties";
 
 	private BufferedReader br = null;
 	private static final long KILL_TIME_MS = 5000;
@@ -88,6 +90,7 @@ public class JdbcJob extends AbstractProcessJob {
 		InputStream inputStream = new FileInputStream(passFilePath);
 		if (inputStream != null) {
 			prop.load(inputStream);
+			inputStream.close();
 		} else {
 			throw new FileNotFoundException("Property file '" + passFilePath + "' not found");
 		}
@@ -95,7 +98,33 @@ public class JdbcJob extends AbstractProcessJob {
 		if (userPassword == null) {
 			throw new Exception("Password for '"+userName+"' not found in properties file under '"+passFilePath+"'");
 		}
+		// load values from external file into job properties
+		InputStream paramInputStream = null;
+		String paramFilePath2 = prop.getProperty(FIELD_PARAMFILEPATH);
+		try {
+			if (paramFilePath2 != null) {
+				paramInputStream = new FileInputStream(paramFilePath2);
+			} else {
+				paramInputStream = new FileInputStream(paramFilePath); // use default path
+			} 
+		} catch (FileNotFoundException f) {
+			// nothing...
+		}
+		if (paramInputStream != null) {
+			info("Reading job parameter values from external properties file");
+			Properties externalProps = new Properties();
+			externalProps.load(paramInputStream);
+			for(String key : externalProps.stringPropertyNames()) {
+				String value = externalProps.getProperty(key);
+				jobProps.put(key, value);
+			}
+			paramInputStream.close();
+		} else {
+			info("No external params property file specified. Continuing.");
+		}
+		
 		sqlFilePath = jobProps.getString(FIELD_FILEPATH);
+		info("SQL file: "+sqlFilePath);
 		className = jobProps.getString(FIELD_CLASSNAME);
 		// optional
 		charSet = jobProps.getString(FIELD_CHARSET, charSet);
@@ -117,10 +146,12 @@ public class JdbcJob extends AbstractProcessJob {
 
 		
 		File sqlFile = new File(sqlFilePath);
+		//info("SQL file 2: "+sqlFilePath);
+		//info("SQL file 3: "+sqlFile.getAbsolutePath());
+		info("SQL file exists: " + String.valueOf(sqlFile.exists()));
+		info("SQL file is dir: " + String.valueOf(sqlFile.isDirectory()));
 		if (!sqlFile.exists() || sqlFile.isDirectory()) {
-			Exception e = new Exception("No such file");
-			handleError("Bad path! " + e.getMessage(), e);
-			return;
+			throw new Exception("Bad SQL file path: "+ sqlFilePath);
 		} else {
 			info("Read SQL file under "+ sqlFilePath);
 		}
@@ -256,6 +287,8 @@ public class JdbcJob extends AbstractProcessJob {
 		String nextStatement = null;
 		boolean isLineComment = false;
 		boolean isBlockComment = false;
+		boolean isQuote = false;
+		char q = '\u0000';  // previous quote character
 		while (true) {
 			r = br.read();
 			// break conditions
@@ -264,7 +297,16 @@ public class JdbcJob extends AbstractProcessJob {
 				break;
 			}
 			c = (char) r;
-			if (c == statementSeparator) { // end of statement
+			// check quote - don't treat separators in quote as separator
+			if (!isQuote && (c == '\'' || c == '"')) {
+				isQuote = true;
+				q = c;
+			}
+			else if (isQuote && c == q) {
+				isQuote = false;
+			}
+			// check statement separator
+			if (c == statementSeparator && !isQuote) { // end of statement if separator is not quoted
 				break;
 			}
 			// check block comment
@@ -284,6 +326,10 @@ public class JdbcJob extends AbstractProcessJob {
 				isLineComment = false;
 			}
 			else if (!isBlockComment && !isLineComment) {
+				// have to escape double quote for JDBC driver
+				if (c == '"') {
+					sb.append('\\');
+				}
 				sb.append(c);
 			}
 			p = c;

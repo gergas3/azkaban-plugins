@@ -24,15 +24,17 @@
 
 	<path id="main.classpath">
 		<fileset dir="${lib.dir}">
-			<include name="*.jar" />
+			<include name="**/*.jar" />
 		</fileset>
 
 		<fileset dir="${ext.lib.dir}">
-            <include name="*.jar" />
+            <include name="**/*.jar" />
 		</fileset>
 
 		<pathelement path="${dist.classes.dir}" />
 	</path>
+	
+	<echo>${toString:main.classpath}</echo>
 	
 	<!-- set the build number based on environment variable, otherwise blank -->
 	<property environment="env" description="System environment variables (including those set by Hudson)" />
@@ -71,7 +73,7 @@
 		</copy-->
 		
 		<javac fork="true" destdir="${dist.classes.dir}"
-			target="1.6" debug="true" deprecation="false" failonerror="true">
+			target="1.6" source="1.6" debug="false" deprecation="false" failonerror="true" includeantruntime="true">
 			<src path="${java.src.dir}" />
 			<src path="${hadoopsecuritymanager-common.java.src.dir}" />
 

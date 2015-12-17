@@ -38,6 +38,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
+import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.Master;
@@ -472,7 +473,7 @@ public class HadoopSecurityManager_H_2_0 extends HadoopSecurityManager {
       throw new HadoopSecurityManagerException("Failed to cancel token. "
           + e.getMessage() + e.getCause(), e);
     } finally {
-      RPC.stopProxy(jhsProxy);
+      RPC.stopProxy((VersionedProtocol) jhsProxy);
     }
 
   }
